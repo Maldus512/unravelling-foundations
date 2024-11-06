@@ -1,0 +1,7 @@
+[package]
+name = "unravelling-foundations"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rule-parser = { path = "crates/formal-systems-toolbox" }
