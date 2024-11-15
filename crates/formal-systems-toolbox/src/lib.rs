@@ -217,95 +217,130 @@ impl Display for Judgement {
 }
 
 #[derive(Clone)]
-pub struct Derivation {
-    pub premises: Vec<Derivation>,
-    pub conclusion: Judgement,
-    pub rule_label: String,
+pub enum Proof {
+    Derivation {
+        premises: Vec<Proof>,
+        conclusion: Judgement,
+        rule_label: String,
+    },
+    Error(Judgement),
 }
 
-impl Derivation {
-    pub fn apply_substitution(&self, substitutions: &UnificationTable) -> Self {
-        Self {
-            premises: self
-                .premises
+impl Proof {
+    pub fn is_valid(&self) -> bool {
+        match self {
+            Self::Error(_) => false,
+            Self::Derivation {
+                premises,
+                conclusion: _,
+                rule_label: _,
+            } => premises
                 .iter()
-                .map(|premise| premise.apply_substitution(substitutions))
-                .collect(),
-            conclusion: self.conclusion.apply_substitution(substitutions),
-            rule_label: self.rule_label.clone(),
+                .fold(true, |result, premise| result && premise.is_valid()),
+        }
+    }
+
+    pub fn apply_substitution(&self, substitutions: &UnificationTable) -> Self {
+        match self {
+            Self::Error(judgement) => Self::Error(judgement.apply_substitution(substitutions)),
+            Self::Derivation {
+                premises,
+                conclusion,
+                rule_label,
+            } => Self::Derivation {
+                premises: premises
+                    .iter()
+                    .map(|premise| premise.apply_substitution(substitutions))
+                    .collect(),
+                conclusion: conclusion.apply_substitution(substitutions),
+                rule_label: rule_label.clone(),
+            },
         }
     }
 
     pub fn pretty_print(&self) -> Vec<String> {
-        let mut lines: Vec<String> = vec![];
+        match self {
+            Self::Derivation {
+                premises,
+                conclusion,
+                rule_label,
+            } => {
+                let mut lines: Vec<String> = vec![];
 
-        let mut premises_results: Vec<Vec<String>> = vec![];
-        let mut premises_width: usize = 0;
-        let mut max_premise_height: usize = 0;
+                let mut premises_results: Vec<Vec<String>> = vec![];
+                let mut premises_width: usize = 0;
+                let mut max_premise_height: usize = 0;
 
-        let conclusion_string = self.conclusion.to_string();
+                let conclusion_string = conclusion.to_string();
 
-        let rule_label = self.rule_label.clone();
-        let conclusion_width: usize = conclusion_string.len();
-        let padded_width = conclusion_width + rule_label.len();
+                let rule_label = rule_label.clone();
+                let conclusion_width: usize = conclusion_string.len();
+                let padded_width = conclusion_width + rule_label.len();
 
-        for (premise, last) in self
-            .premises
-            .iter()
-            .enumerate()
-            .map(|(i, el)| (el, i == self.premises.len() - 1))
-        {
-            let premise_tree = if !last {
-                premise
-                    .pretty_print()
-                    .into_iter()
-                    .map(|line| line + "  ")
-                    .collect()
-            } else {
-                premise.pretty_print()
-            };
+                for (premise, last) in premises
+                    .iter()
+                    .enumerate()
+                    .map(|(i, el)| (el, i == premises.len() - 1))
+                {
+                    let premise_tree = if !last {
+                        premise
+                            .pretty_print()
+                            .into_iter()
+                            .map(|line| line + "  ")
+                            .collect()
+                    } else {
+                        premise.pretty_print()
+                    };
 
-            if premise_tree.len() > max_premise_height {
-                max_premise_height = premise_tree.len();
-            }
+                    if premise_tree.len() > max_premise_height {
+                        max_premise_height = premise_tree.len();
+                    }
 
-            premises_width += premise_tree.get(0).map(|s| s.len()).unwrap_or(0);
-            premises_results.push(premise_tree);
-        }
-
-        let max_width = std::cmp::max(premises_width, padded_width);
-        let bar_width = std::cmp::max(max_width, conclusion_width + 2);
-        let max_width = std::cmp::max(max_width, bar_width + rule_label.len());
-
-        lines.push(format!(
-            "{}{: ^width$}",
-            " ".repeat(rule_label.len()),
-            conclusion_string,
-            width = max_width - rule_label.len()
-        ));
-        lines.push(format!(
-            "{}{: ^width$}",
-            rule_label,
-            ("-".repeat(bar_width)).as_str(),
-            width = max_width - rule_label.len()
-        ));
-
-        // Merge
-        for i in 0..max_premise_height {
-            let mut line = String::new();
-
-            for premise_tree in &premises_results {
-                if let Some(premise_line) = premise_tree.get(i) {
-                    line.push_str(premise_line.as_str());
-                } else {
-                    line.push_str(" ".repeat(premise_tree.get(0).unwrap().len()).as_str());
+                    premises_width += premise_tree.get(0).map(|s| s.len()).unwrap_or(0);
+                    premises_results.push(premise_tree);
                 }
+
+                let max_width = std::cmp::max(premises_width, padded_width);
+                let bar_width = std::cmp::max(max_width, conclusion_width + 2);
+                let max_width = std::cmp::max(max_width, bar_width + rule_label.len());
+
+                lines.push(format!(
+                    "{}{: ^width$}",
+                    " ".repeat(rule_label.len()),
+                    conclusion_string,
+                    width = max_width - rule_label.len()
+                ));
+                lines.push(format!(
+                    "{}{: ^width$}",
+                    rule_label,
+                    ("-".repeat(bar_width)).as_str(),
+                    width = max_width - rule_label.len()
+                ));
+
+                // Merge
+                for i in 0..max_premise_height {
+                    let mut line = String::new();
+
+                    for premise_tree in &premises_results {
+                        if let Some(premise_line) = premise_tree.get(i) {
+                            line.push_str(premise_line.as_str());
+                        } else {
+                            line.push_str(" ".repeat(premise_tree.get(0).unwrap().len()).as_str());
+                        }
+                    }
+
+                    lines.push(format!("{: ^width$}", line, width = max_width));
+                }
+
+                lines
             }
+            Self::Error(judgement) => {
+                let conclusion_string = judgement.to_string();
+                let bar_len = conclusion_string.len() + 3;
 
-            lines.push(format!("{: ^width$}", line, width = max_width));
+                vec![conclusion_string, "~x~".repeat(bar_len / 3)]
+            }
         }
-
-        lines
     }
 
     pub fn to_string_tree(&self) -> String {
@@ -384,66 +419,65 @@ impl FormalSystem {
         Self { axioms }
     }
 
-    pub fn verify(&self, judgement: &Judgement) -> Option<Derivation> {
+    pub fn verify(&self, judgement: &Judgement) -> Proof {
         let mut substitutions = UnificationTable::new();
-        self.verify_with_substitutions(&mut substitutions, judgement)
-            .map(|derivation| derivation.apply_substitution(&substitutions))
+        self.verify_recursion(&mut substitutions, judgement)
+            .apply_substitution(&substitutions)
     }
 
-    fn verify_with_substitutions(
+    fn verify_recursion(
         &self,
         substitutions: &mut UnificationTable,
         judgement: &Judgement,
-    ) -> Option<Derivation> {
-        //println!("Proving {}", judgement);
+    ) -> Proof {
+        println!("Proving {}", judgement);
+
+        let mut axiom_substitutions = substitutions.clone();
+
+        let mut variables = judgement.get_variables();
+        for (key, value) in axiom_substitutions.iter() {
+            variables.insert(key.clone());
+            variables.extend(value.get_variables());
+        }
 
         for axiom in &self.axioms {
             //println!("Trying {}", axiom);
 
-            let mut variables = judgement.get_variables();
-            variables.extend(substitutions.clone().into_keys());
-
             let axiom = axiom.alpha_conversion(&variables, &|symbol| symbol + "'");
 
-            let mut unification_substitutions = substitutions.clone();
+            let mut unification_substitutions = axiom_substitutions.clone();
 
             match judgement
                 .unify_with_substitution(&axiom.conclusion, &mut unification_substitutions)
             {
                 Ok(_) => {
-                    substitutions.extend(unification_substitutions);
+                    axiom_substitutions.extend(unification_substitutions);
 
-                    /*
-                    println!(
-                        "Matched {} ({}), recursion...",
-                        axiom.conclusion.apply_substitution(&substitutions),
-                        axiom
-                    );
-
-                    for (from, to) in substitutions.iter() {
+                    println!("Matched {}, recursion...", axiom);
+                    for (from, to) in axiom_substitutions.iter() {
                         println!("{} -> {}", from, to);
                     }
-                    */
 
-                    let mut premises: Vec<Derivation> = vec![];
+                    let mut premises: Vec<Proof> = vec![];
 
                     for premise in &axiom.premises {
                         //println!("Recursing premise {}", premise);
-                        let premise_proof = self.verify_with_substitutions(substitutions, &premise);
-
-                        if let Some(proof) = premise_proof {
-                            premises.push(proof);
-                        } else {
-                            return Option::None;
-                        }
+                        // Here instead of the recursive call get all possible substiutions of the
+                        // first premise, than try one and go onto the next. If you fail try the
+                        // next one, then change order or premises
+                        let premise_proof =
+                            self.verify_recursion(&mut axiom_substitutions, &premise);
+                        premises.push(premise_proof);
                     }
 
-                    //println!("Proved {}!", judgement);
-                    return Option::Some(Derivation {
+                    println!("Proved {}!\n", judgement);
+                    substitutions.extend(axiom_substitutions);
+
+                    return Proof::Derivation {
                         premises,
                         conclusion: judgement.clone(),
                         rule_label: axiom.name.clone(),
-                    });
+                    };
                 }
                 Err(_e) => {
                     //println!("No dice {}!", e);
@@ -451,7 +485,7 @@ impl FormalSystem {
             }
         }
 
-        return Option::None;
+        return Proof::Error(judgement.clone());
     }
 }
 
@@ -516,16 +550,97 @@ mod tests {
 
     #[test]
     fn nat_formal_system() {
+        fn zero() -> Judgement {
+            atom("zero")
+        }
+        fn succ(n: Judgement) -> Judgement {
+            op!("succ", n)
+        }
+        fn empty() -> Judgement {
+            atom("empty")
+        }
+        fn node(t1: Judgement, t2: Judgement) -> Judgement {
+            op!("node", t1, t2)
+        }
+
         let nat = FormalSystem::new(vec![
             Rule::new(
                 "succ",
                 vec![op!("nat", var("n"))],
-                op!("nat", op!("succ", var("n"))),
+                op!("nat", succ(var("n"))),
             ),
-            Rule::taut("zero", op!("nat", atom("zero"))),
+            Rule::taut("zero", op!("nat", zero())),
+            Rule::new(
+                "tree",
+                vec![op!("tree", var("a1")), op!("tree", var("a2"))],
+                op!("tree", op!("node", var("a1"), var("a2"))),
+            ),
+            Rule::taut("empty", op!("tree", atom("empty"))),
+            Rule::taut("s1", op!("sum", var("n"), zero(), var("n"))),
+            Rule::new(
+                "s2",
+                vec![op!("sum", var("n"), var("m"), var("p"))],
+                op!("sum", var("n"), succ(var("m")), succ(var("p"))),
+            ),
+            Rule::taut("max1", op!("max", var("n"), zero(), var("n"))),
+            Rule::taut("max2", op!("max", zero(), var("n"), var("n"))),
+            Rule::new(
+                "max3",
+                vec![op!("max", var("n"), var("m"), var("p"))],
+                op!("max", succ(var("n")), succ(var("m")), succ(var("p"))),
+            ),
+            Rule::taut("h1", op!("hgt", atom("empty"), zero())),
+            Rule::new(
+                "h2",
+                vec![
+                    op!("hgt", var("t1"), var("n1")),
+                    op!("hgt", var("t2"), var("n2")),
+                    op!("max", var("n1"), var("n2"), var("n")),
+                ],
+                op!("hgt", op!("node", var("t1"), var("t2")), succ(var("n"))),
+            ),
         ]);
 
-        let proof = nat.verify(&op!("nat", atom("zero")));
-        assert!(proof.is_some());
+        assert!(nat.verify(&op!("nat", atom("zero"))).is_valid());
+        assert!(nat.verify(&op!("sum", zero(), zero(), zero())).is_valid());
+        assert!(!nat
+            .verify(&op!("sum", zero(), succ(zero()), zero()))
+            .is_valid());
+        assert!(nat
+            .verify(&op!(
+                "max",
+                succ(zero()),
+                succ(succ(zero())),
+                succ(succ(zero()))
+            ))
+            .is_valid());
+        assert!(nat
+            .verify(&op!(
+                "max",
+                succ(zero()),
+                succ(succ(zero())),
+                succ(succ(zero()))
+            ))
+            .is_valid());
+        assert!(nat
+            .verify(&op!("hgt", node(empty(), empty()), succ(zero())))
+            .is_valid());
+        assert!(nat
+            .verify(&op!(
+                "hgt",
+                node(empty(), node(empty(), empty())),
+                succ(succ(zero()))
+            ))
+            .is_valid());
+        assert!(!nat
+            .verify(&op!(
+                "hgt",
+                node(empty(), node(empty(), empty())),
+                succ(zero())
+            ))
+            .is_valid());
+        assert!(nat
+            .verify(&op!("hgt", node(empty(), node(empty(), empty())), var("x")))
+            .is_valid());
     }
 }

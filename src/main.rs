@@ -21,27 +21,27 @@ fn main() {
                 vec![op!("nat", var("n"))],
                 op!("nat", succ(var("n"))),
             ),
-            Rule::taut("zero", op!("nat", atom("zero"))),
+            Rule::taut("zero", op!("nat", zero())),
             Rule::new(
                 "tree",
                 vec![op!("tree", var("a1")), op!("tree", var("a2"))],
                 op!("tree", op!("node", var("a1"), var("a2"))),
             ),
             Rule::taut("empty", op!("tree", atom("empty"))),
-            Rule::taut("s1", op!("sum", var("n"), atom("zero"), var("n"))),
+            Rule::taut("s1", op!("sum", var("n"), zero(), var("n"))),
             Rule::new(
                 "s2",
                 vec![op!("sum", var("n"), var("m"), var("p"))],
                 op!("sum", var("n"), succ(var("m")), succ(var("p"))),
             ),
-            Rule::taut("max1", op!("max", var("n"), atom("zero"), var("n"))),
-            Rule::taut("max2", op!("max", atom("zero"), var("n"), var("n"))),
+            Rule::taut("max1", op!("max", var("n"), zero(), var("n"))),
+            Rule::taut("max2", op!("max", zero(), var("n"), var("n"))),
             Rule::new(
                 "max3",
                 vec![op!("max", var("n"), var("m"), var("p"))],
                 op!("max", succ(var("n")), succ(var("m")), succ(var("p"))),
             ),
-            Rule::taut("h1", op!("hgt", atom("empty"), atom("zero"))),
+            Rule::taut("h1", op!("hgt", atom("empty"), zero())),
             Rule::new(
                 "h2",
                 vec![
@@ -53,54 +53,38 @@ fn main() {
             ),
         ]);
 
-        
-        let proof = nat.verify(&op!("sum", zero(), zero(), zero())).unwrap();
-        println!("Prova:{}", proof.to_string_tree());
-
-        let proof = nat
-            .verify(&op!(
-                "max",
-                succ(zero()),
-                succ(succ(zero())),
-                succ(succ(zero()))
-            ))
-            .unwrap();
-        println!("Prova:{}", proof.to_string_tree());
-
-        let proof = nat
-            .verify(&op!(
-                "max",
-                succ(zero()),
-                succ(succ(zero())),
-                succ(succ(zero()))
-            ))
-            .unwrap();
-        println!("Prova:{}", proof.to_string_tree());
-
-        let proof = nat
-            .verify(&op!("hgt", node(empty(), empty()), succ(zero())))
-            .unwrap();
-        println!("Prova:{}", proof.to_string_tree());
-
-        let proof = nat
-            .verify(&op!(
-                "hgt",
-                node(empty(), node(empty(), empty())),
-                succ(succ(zero()))
-            ))
-            .unwrap();
-        println!("Prova:{}", proof.to_string_tree());
-        
-
         /*
-        let proof = nat
-            .verify(&op!(
-                "hgt",
-                node(empty(), node(empty(), empty())),
-                var("x")
-            ))
-            .unwrap();
-        println!("Const:{}", proof.to_string_tree());
+        let proof = nat.verify(&op!("sum", zero(), zero(), zero()));
+        println!("Prova:{}", proof.to_string_tree());
+
+        let proof = nat.verify(&op!(
+            "max",
+            succ(zero()),
+            succ(succ(zero())),
+            succ(succ(zero()))
+        ));
+        println!("Prova:{}", proof.to_string_tree());
+
+        let proof = nat.verify(&op!(
+            "max",
+            succ(zero()),
+            succ(succ(zero())),
+            succ(succ(zero()))
+        ));
+        println!("Prova:{}", proof.to_string_tree());
+
+        let proof = nat.verify(&op!("hgt", node(empty(), empty()), succ(zero())));
+        println!("Prova:{}", proof.to_string_tree());
+
+        let proof = nat.verify(&op!(
+            "hgt",
+            node(empty(), node(empty(), empty())),
+            succ(succ(zero()))
+        ));
+        println!("Prova:{}", proof.to_string_tree());
         */
+
+        let proof = nat.verify(&op!("hgt", node(empty(), var("x")), succ(succ(zero()))));
+        println!("Const:{}", proof.to_string_tree());
     }
 }
