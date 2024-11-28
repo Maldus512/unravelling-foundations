@@ -117,13 +117,14 @@ fn main() {
         println!("Prova:{}", proof.to_string_tree());
 
         let proof = nat
-            .verify(&op!("hgt", node(empty(), var("x")), succ(succ(zero()))))
-            .unwrap();
-        println!("Const:{}", proof.to_string_tree());
-
-        let proof = nat
             .verify(&op!("hgt", node(empty(), node(empty(), empty())), var("x")))
             .unwrap();
         println!("Calc:{}", proof.to_string_tree());
+
+        let proof = nat
+            .verify(&op!("hgt", var("x"), succ(succ(zero()))))
+            .unwrap();
+        println!("Const:{}", proof.to_string_tree());
+
     }
 }

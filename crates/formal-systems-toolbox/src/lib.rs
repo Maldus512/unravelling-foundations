@@ -55,22 +55,14 @@ impl Judgement {
         }
     }
 
-    pub fn alpha_conversion(
+    pub fn rename_variables<S>(
         &self,
-        names: &HashSet<String>,
-        operation: &impl Fn(String) -> String,
+        state: &mut S,
+        operation: &impl Fn(&mut S, String) -> String,
     ) -> Self {
         use Judgement::*;
         match self {
-            Variable(symbol) => {
-                let mut new_symbol = symbol.clone();
-
-                while names.contains(new_symbol.as_str()) {
-                    new_symbol = operation(new_symbol);
-                }
-
-                Variable(new_symbol)
-            }
+            Variable(symbol) => Variable(operation(state, symbol.clone())),
             Operator {
                 predicate,
                 subjects,
@@ -78,7 +70,7 @@ impl Judgement {
                 predicate: predicate.clone(),
                 subjects: subjects
                     .iter()
-                    .map(|subject| subject.alpha_conversion(names, operation))
+                    .map(|subject| subject.rename_variables(state, operation))
                     .collect(),
             },
         }
@@ -344,19 +336,19 @@ impl Rule {
         Self::new(name, vec![], judgement)
     }
 
-    pub fn alpha_conversion(
+    pub fn rename_variables<S>(
         &self,
-        names: &HashSet<String>,
-        operation: &impl Fn(String) -> String,
+        state: &mut S,
+        operation: &impl Fn(&mut S, String) -> String,
     ) -> Self {
         Self {
             name: self.name.clone(),
             premises: self
                 .premises
                 .iter()
-                .map(|premise| premise.alpha_conversion(names, operation))
+                .map(|premise| premise.rename_variables(state, operation))
                 .collect(),
-            conclusion: self.conclusion.alpha_conversion(names, operation),
+            conclusion: self.conclusion.rename_variables(state, operation),
         }
     }
 }
@@ -391,8 +383,12 @@ impl FormalSystem {
     }
 
     pub fn verify(&self, judgement: &Judgement) -> Option<Derivation> {
-        let (proof, substitutions) =
-            self.verify_recursion(&UnificationTable::new(), judgement, 0)?;
+        let (proof, substitutions) = self.verify_recursion(
+            &mut HashSet::new(),
+            &UnificationTable::new(),
+            judgement,
+            0,
+        )?;
         Some(proof.apply_substitution(&substitutions))
     }
 
@@ -410,7 +406,15 @@ impl FormalSystem {
         }
 
         for axiom in &self.axioms {
-            let axiom = axiom.alpha_conversion(&variables, &|symbol| symbol + "'");
+            //println!(">  {}", axiom);
+            let axiom = axiom.rename_variables(&mut (), &|_, symbol| {
+                let mut new_symbol = symbol.clone();
+                while variables.contains(new_symbol.as_str()) {
+                    new_symbol = next_name(new_symbol.as_str());
+                }
+                new_symbol
+            });
+            //println!(">> {}", axiom);
             let mut unification_substitutions = substitutions.clone();
 
             match judgement
@@ -428,11 +432,29 @@ impl FormalSystem {
 
     fn verify_recursion(
         &self,
+        bin: &mut HashSet<String>,
         substitutions: &UnificationTable,
         judgement: &Judgement,
         height: u16,
     ) -> Option<(Derivation, UnificationTable)> {
         if height > self.max_derivation_height {
+            return None;
+        }
+
+        let normalized_judgement = judgement
+            .apply_substitution(substitutions)
+            .rename_variables(&mut HashMap::<String, String>::new(), &|state, symbol| {
+                if let Some(new_symbol) = state.get(&symbol) {
+                    new_symbol.clone()
+                } else {
+                    let counter = state.len() + 1;
+                    let new_symbol = format!("x{}", counter);
+                    state.insert(symbol, new_symbol.clone());
+                    new_symbol.clone()
+                }
+            }).to_string();
+
+        if bin.contains(&normalized_judgement) {
             return None;
         }
 
@@ -445,12 +467,23 @@ impl FormalSystem {
                 let mut valid: bool = true;
 
                 for premise in &premises {
-                    match self.verify_recursion(&substitutions, &premise, height + 1) {
+                    match self.verify_recursion(
+                        bin,
+                        &substitutions,
+                        &premise,
+                        height + 1,
+                    ) {
                         Some((proof, new_substitutions)) => {
                             substitutions.extend(new_substitutions);
                             premises_proofs.push(proof);
                         }
                         None => {
+                            /*premises_proofs.push(Derivation {
+                                premises: vec![],
+                                conclusion: judgement.clone(),
+                                rule_label: String::from("abs"),
+                            });
+                            */
                             valid = false;
                             break;
                         }
@@ -469,6 +502,8 @@ impl FormalSystem {
             }
         }
 
+        bin.insert(normalized_judgement);
+
         None
     }
 }
@@ -479,6 +514,39 @@ pub fn var(name: &str) -> Judgement {
 
 pub fn atom(name: &str) -> Judgement {
     Judgement::operator(name, vec![])
+}
+
+fn next_name(name: &str) -> String {
+    let mut base = String::new();
+    let mut number = String::new();
+    let mut number_found = false;
+
+    let name_plus_one = String::from(name) + "1";
+
+    for c in name.chars() {
+        if number_found {
+            if c.is_digit(10) {
+                number.push(c);
+            } else {
+                return name_plus_one;
+            }
+        } else {
+            if c.is_digit(10) {
+                number_found = true;
+                number.push(c);
+            } else {
+                base.push(c);
+            }
+        }
+    }
+
+    if number_found {
+        if let Ok(number) = u32::from_str_radix(number.as_str(), 10) {
+            return format!("{}{}", base, number + 1);
+        }
+    }
+
+    return name_plus_one;
 }
 
 #[cfg(test)]
