@@ -1,14 +1,14 @@
-use formal_systems_toolbox::*;
+use formal_systems_toolbox::{logic::*, *};
 
 fn main() {
     fn zero() -> Judgement {
-        atom("zero")
+        constant("zero")
     }
     fn succ(n: Judgement) -> Judgement {
         op!("succ", n)
     }
     fn empty() -> Judgement {
-        atom("empty")
+        constant("empty")
     }
     fn node(t1: Judgement, t2: Judgement) -> Judgement {
         op!("node", t1, t2)
@@ -28,7 +28,7 @@ fn main() {
                     vec![op!("tree", var("a1")), op!("tree", var("a2"))],
                     op!("tree", op!("node", var("a1"), var("a2"))),
                 ),
-                Rule::taut("empty", op!("tree", atom("empty"))),
+                Rule::taut("empty", op!("tree", constant("empty"))),
                 Rule::taut("s1", op!("sum", var("n"), zero(), var("n"))),
                 Rule::new(
                     "s2",
@@ -42,7 +42,7 @@ fn main() {
                     vec![op!("max", var("n"), var("m"), var("p"))],
                     op!("max", succ(var("n")), succ(var("m")), succ(var("p"))),
                 ),
-                Rule::taut("h1", op!("hgt", atom("empty"), zero())),
+                Rule::taut("h1", op!("hgt", constant("empty"), zero())),
                 Rule::new(
                     "h2",
                     vec![
@@ -57,10 +57,10 @@ fn main() {
         );
 
         let proof = nat.verify(&op!("nat", succ(zero()))).unwrap();
-        println!("Prova:{}", proof.to_string_tree());
+        println!("Test:{}", proof.to_string_tree());
 
         let proof = nat.verify(&op!("sum", zero(), zero(), zero())).unwrap();
-        println!("Prova:{}", proof.to_string_tree());
+        println!("Test:{}", proof.to_string_tree());
 
         let proof = nat
             .verify(&op!(
@@ -70,7 +70,7 @@ fn main() {
                 succ(succ(succ(zero())))
             ))
             .unwrap();
-        println!("Prova:{}", proof.to_string_tree());
+        println!("Test:{}", proof.to_string_tree());
 
         let proof = nat
             .verify(&op!(
@@ -90,7 +90,7 @@ fn main() {
                 succ(succ(zero()))
             ))
             .unwrap();
-        println!("Prova:{}", proof.to_string_tree());
+        println!("Test:{}", proof.to_string_tree());
 
         let proof = nat
             .verify(&op!(
@@ -100,12 +100,12 @@ fn main() {
                 succ(succ(succ(zero())))
             ))
             .unwrap();
-        println!("Prova:{}", proof.to_string_tree());
+        println!("Test:{}", proof.to_string_tree());
 
         let proof = nat
             .verify(&op!("hgt", node(empty(), empty()), succ(zero())))
             .unwrap();
-        println!("Prova:{}", proof.to_string_tree());
+        println!("Test:{}", proof.to_string_tree());
 
         let proof = nat
             .verify(&op!(
@@ -114,7 +114,7 @@ fn main() {
                 succ(succ(zero()))
             ))
             .unwrap();
-        println!("Prova:{}", proof.to_string_tree());
+        println!("Test:{}", proof.to_string_tree());
 
         let proof = nat
             .verify(&op!("hgt", node(empty(), node(empty(), empty())), var("x")))
@@ -125,6 +125,5 @@ fn main() {
             .verify(&op!("hgt", var("x"), succ(succ(zero()))))
             .unwrap();
         println!("Const:{}", proof.to_string_tree());
-
     }
 }
